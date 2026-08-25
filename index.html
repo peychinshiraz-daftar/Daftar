@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ثبت ورود و خروج</title>
+<meta name="theme-color" content="#1e293b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Vazirmatn', Tahoma, sans-serif;
+    background: linear-gradient(160deg, #0f172a, #1e293b);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #f1f5f9;
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    background: #1e293bcc;
+    backdrop-filter: blur(10px);
+    border: 1px solid #33415580;
+    border-radius: 20px;
+    padding: 28px 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+  }
+  h1 {
+    font-size: 20px;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: #cbd5e1;
+    margin-bottom: 6px;
+    margin-top: 14px;
+  }
+  input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: #f1f5f9;
+    font-size: 15px;
+    outline: none;
+  }
+  input:focus { border-color: #38bdf8; }
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  button {
+    flex: 1;
+    padding: 14px 10px;
+    border-radius: 12px;
+    border: none;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  #btnIn { background: #22c55e; color: #052e16; }
+  #btnOut { background: #ef4444; color: #450a0a; }
+  #status {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    line-height: 1.7;
+    text-align: center;
+    display: none;
+  }
+  .status-ok { background: #14532d55; border: 1px solid #22c55e; color: #bbf7d0; display: block !important; }
+  .status-err { background: #7f1d1d55; border: 1px solid #ef4444; color: #fecaca; display: block !important; }
+  .status-info { background: #1e3a8a55; border: 1px solid #3b82f6; color: #bfdbfe; display: block !important; }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid #ffffff55;
+    border-top-color: #fff;
+    border-radius: 50%;
+    display: inline-block;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .remember-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: #94a3b8;
+  }
+  .remember-row input { width: auto; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>ثبت ورود و خروج</h1>
+  <div class="subtitle">فقط داخل محدوده دفتر قابل ثبت است</div>
+
+  <label for="username">نام کاربری</label>
+  <input type="text" id="username" autocomplete="username" placeholder="مثلاً ali.rezaei">
+
+  <label for="password">رمز عبور</label>
+  <input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+
+  <div class="remember-row">
+    <input type="checkbox" id="remember">
+    <label for="remember" style="margin:0;">به خاطر بسپار روی این گوشی</label>
+  </div>
+
+  <div class="btn-row">
+    <button id="btnIn" onclick="submitAttendance('ورود')">ثبت ورود</button>
+    <button id="btnOut" onclick="submitAttendance('خروج')">ثبت خروج</button>
+  </div>
+
+  <div id="status"></div>
+</div>
+
+<script>
+// ⚠️ این آدرس رو بعد از دیپلوی کردن Apps Script با آدرس واقعی خودتون جایگزین کنید
+const API_URL = 'https://script.google.com/macros/s/AKfycbwmn1Jga6ZvBlByVk7WpX0GV8t2pQEzc_EXEQ48SpCpH3KYbuBSm63iBfdKOEGgmeaD/exec
+
+';
+
+const statusEl = document.getElementById('status');
+const btnIn = document.getElementById('btnIn');
+const btnOut = document.getElementById('btnOut');
+
+// بارگذاری اطلاعات ذخیره‌شده روی گوشی (در صورت فعال بودن گزینه "به خاطر بسپار")
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('attendance_creds');
+  if (saved) {
+    const { u, p } = JSON.parse(saved);
+    document.getElementById('username').value = u;
+    document.getElementById('password').value = p;
+    document.getElementById('remember').checked = true;
+  }
+});
+
+function setStatus(type, html) {
+  statusEl.className = 'status-' + type;
+  statusEl.innerHTML = html;
+}
+
+function setLoading(loading) {
+  btnIn.disabled = loading;
+  btnOut.disabled = loading;
+}
+
+function submitAttendance(type) {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value.trim();
+
+  if (!username || !password) {
+    setStatus('err', 'لطفاً نام کاربری و رمز عبور را وارد کنید.');
+    return;
+  }
+
+  if (API_URL.indexOf('PASTE_YOUR') === 0) {
+    setStatus('err', 'آدرس سرویس (API_URL) هنوز تنظیم نشده است. راهنمای نصب را ببینید.');
+    return;
+  }
+
+  const remember = document.getElementById('remember').checked;
+  if (remember) {
+    localStorage.setItem('attendance_creds', JSON.stringify({ u: username, p: password }));
+  } else {
+    localStorage.removeItem('attendance_creds');
+  }
+
+  setLoading(true);
+  setStatus('info', 'در حال دریافت موقعیت مکانی...<span class="spinner"></span>');
+
+  if (!navigator.geolocation) {
+    setStatus('err', 'مرورگر شما از موقعیت‌یابی پشتیبانی نمی‌کند.');
+    setLoading(false);
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy; // دقت تخمینی GPS بر حسب متر
+      setStatus('info', 'در حال ارسال به سرور...<span class="spinner"></span>');
+      sendToServer({ action: 'checkin', username, password, type, lat, lng, accuracy });
+    },
+    (err) => {
+      setLoading(false);
+      let msg = 'دسترسی به موقعیت مکانی ممکن نشد.';
+      if (err.code === 1) msg = 'شما دسترسی به موقعیت مکانی را رد کردید. لطفاً از تنظیمات مرورگر آن را فعال کنید.';
+      if (err.code === 2) msg = 'موقعیت مکانی در دسترس نیست. لطفاً GPS گوشی را روشن کنید.';
+      if (err.code === 3) msg = 'زمان دریافت موقعیت مکانی تمام شد. دوباره تلاش کنید.';
+      setStatus('err', msg);
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function sendToServer(payload) {
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // برای دور زدن preflight در Apps Script
+    body: JSON.stringify(payload)
+  })
+    .then(res => res.json())
+    .then(data => {
+      setLoading(false);
+      if (data.success) {
+        setStatus('ok', '✅ ' + data.message + (data.time ? '<br>ساعت: ' + data.time : ''));
+      } else {
+        setStatus('err', '❌ ' + data.message);
+      }
+    })
+    .catch(() => {
+      setLoading(false);
+      setStatus('err', 'ارتباط با سرور برقرار نشد. اتصال اینترنت خود را بررسی کنید.');
+    });
+}
+
+// ثبت Service Worker برای قابلیت نصب و کارکرد آفلاین رابط کاربری
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
